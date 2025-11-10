@@ -1,0 +1,21 @@
+services:
+  ecommerce-dashboard:
+
+    container_name: ecommerce-dashboard
+
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+
+    ports:
+      - "${HOST_PORT}:${CONTAINER_PORT}"
+
+    volumes:
+      - ../:/home/user/app
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+    
+    command: sh -c "chmod +x .docker/start.sh && ./.docker/start.sh"
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # C:\Windows\System32\drivers\etc\hosts -> 127.0.0.1    host.docker.internal

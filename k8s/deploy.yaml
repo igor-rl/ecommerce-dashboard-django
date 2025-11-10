@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: django-app
+  template:
+    metadata:
+      labels:
+        app: django-app
+    spec:
+      hostAliases:
+      - ip: "192.168.49.1"  # IP do host que roda o Minikube, pode variar
+        hostnames:
+        - "host.docker.internal"
+      containers:
+        - name: django
+          image: docker.io/library/permisao-dashboard:0.0
+          command: ["/docker-entrypoint.sh"]
+          args: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120", "permissao.wsgi:application"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DEBUG
+              value: "True"
+            - name: DB_NAME
+              value: "ex_permissao_py"
+            - name: DB_USERNAME
+              value: "pguser"
+            - name: DB_PASSWORD
+              value: "pgpass"
+            - name: DB_HOST
+              value: "host.docker.internal"
+            - name: DB_PORT
+              value: "5432"
+            - name: RABBITMQ_USER
+              value: "guest"
+            - name: RABBITMQ_PASSWORD
+              value: "guest"
+            - name: RABBITMQ_HOST
+              value: "host.docker.internal"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_VHOST
+              value: "/"
+            - name: URL_CORS_ENABLE
+              value: "http://localhost:8000,http://localhost:4200,https://permissao.exsistemas.com.br,https://www.permissao.exsistemas.com.br"
+
+        # Container para o cliente RabbitMQ
+        - name: rabbitmq-client
+          image: docker.io/library/permisao-dashboard:0.0
+          command: ["/docker-entrypoint.sh"]
+          args: ["python", "manage.py", "start_client_consumer"]
+          env:
+            - name: DEBUG
+              value: "True"
+            - name: DB_NAME
+              value: "ex_permissao_py"
+            - name: DB_USERNAME
+              value: "pguser"
+            - name: DB_PASSWORD
+              value: "pgpass"
+            - name: DB_HOST
+              value: "host.docker.internal"
+            - name: DB_PORT
+              value: "5432"
+            - name: RABBITMQ_USER
+              value: "guest"
+            - name: RABBITMQ_PASSWORD
+              value: "guest"
+            - name: RABBITMQ_HOST
+              value: "host.docker.internal"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_VHOST
+              value: "/"
+            - name: URL_CORS_ENABLE
+              value: "http://localhost:8000,http://localhost:4200,https://permissao.exsistemas.com.br,https://www.permissao.exsistemas.com.br"

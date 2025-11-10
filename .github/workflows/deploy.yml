@@ -1,0 +1,19 @@
+name: Ex Build, Push and Deploy on GCP
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  CI-CD:
+    uses: Excellent-Sistemas/.github/.github/workflows/build-on-gcp-artifacty-registry.yml@master
+    with:
+      image-version: 0.0.${{ github.run_number }}
+      image-name: ${{ github.event.repository.name }}
+      gcp-project-id: ${{ vars.GCP_PROJECT_ID }}
+      gcp-artifacts-zone: ${{ vars.GCP_ARTIFACTS_ZONE }}
+      gke-cluster-name: ${{ vars.GKE_CLUSTER_NAME }}
+      gke-zone: ${{ vars.GKE_ZONE }}
+    secrets:
+      TOKEN_GITHUB: ${{ secrets.TOKEN_GITHUB }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
