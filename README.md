@@ -4,36 +4,11 @@
 
 O aplicativo **E-Commerce Dashboard** é o painel administrativo do
 projeto de e-commerce desenvolvido por [Igor
-Lage](https://igorlage.vercel.app/home).\
+Lage](https://igorlage.vercel.app/home).
 Ele foi projetado para permitir que o proprietário do negócio gerencie
 de forma eficiente sua plataforma de vendas online contratada junto ao
 franqueador, priorizando **escalabilidade**, **isolamento de ambiente**
 e **automação de setup** via containers.
-
-## ⬇️ Comece a partir do projeto base
-
-**Copie o projeto base disponibilizado no gitHub:**
-
-```bash
-git clone https://github.com/igor-rl/django-base.git
-```
-
-**Escolha um novo nome para o projeto:**
-```bash
-mv django-base <nome-novo>
-```
-
-**Acesse a pasta do projeto:**
-```bash
-cd <nome-novo>
-```
-
-**Abra o projeto com o cursor IDE:**
-```bash
-cursor .
-```
-
-<br>
 
 ---
 
@@ -91,10 +66,22 @@ A aplicação estará acessível através do endereço:\
 
 ## 🧰 Comandos Úteis
 
-**Criar um novo projeto Djando:**
+**Criar as migrações:**
 
 ``` bash
-django-admin startproject <nome_do_projeto>
+python manage.py makemigrations
+```
+
+**Processar as migrações:**
+
+``` bash
+python manage.py migrate
+```
+
+**Adicionar um novo módulo**
+
+```bash
+django-admin startapp <nome_do_modulo>
 ```
 
 
