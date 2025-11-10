@@ -2,4 +2,3 @@
 generated_secrets/
 .venv/
 .docker/db
-.devcontainer/devcontainer.json
