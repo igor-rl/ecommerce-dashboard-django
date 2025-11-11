@@ -1,0 +1,29 @@
+/* 🔹 Diminui a largura dos labels (Início / Fim) */
+fieldset .form-row label {
+  min-width: 40px !important;
+  margin-right: 6px !important;
+  font-size: 13px !important;
+}
+
+/* 🔹 Deixa os inputs menores e com espaçamento controlado */
+fieldset .form-row input[type="text"],
+fieldset .form-row input[type="time"] {
+  width: 90px !important;
+  padding: 3px 4px !important;
+  font-size: 13px !important;
+  height: 28px !important;
+  margin-right: 12px !important;
+  text-align: center;
+}
+
+/* 🔹 Ajusta o alinhamento horizontal dos pares de campos */
+fieldset .form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 🔹 Melhora o espaçamento vertical entre linhas (turno A e B) */
+fieldset {
+  margin-bottom: 6px;
+}

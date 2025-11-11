@@ -5,6 +5,7 @@ from .forms import ProductForm
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    
     form = ProductForm
 
     list_display = ("name", "get_price_display", "stock", "is_active", "get_created_short")
