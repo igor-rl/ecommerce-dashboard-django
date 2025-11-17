@@ -3,6 +3,8 @@ import uuid
 from django.db import models
 from django.utils.text import slugify
 
+from organization.models import Enterprise
+
 
 class Product(models.Model):
   """
@@ -14,6 +16,13 @@ class Product(models.Model):
     default=uuid.uuid4,
     editable=False,
     unique=True
+  )
+
+  enterprise = models.ForeignKey(
+      Enterprise,
+      on_delete=models.CASCADE,
+      related_name="productEnterprise",
+      verbose_name="Enterprise",
   )
 
   name = models.CharField(

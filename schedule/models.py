@@ -5,6 +5,8 @@ from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
 
+from organization.models import Enterprise
+
 class Appointment(models.Model):
 
   id = models.UUIDField(
@@ -12,6 +14,13 @@ class Appointment(models.Model):
     default=uuid.uuid4,
     editable=False,
     unique=True
+  )
+
+  enterprise = models.ForeignKey(
+      Enterprise,
+      on_delete=models.CASCADE,
+      related_name="appointmentEnterprise",
+      verbose_name="Enterprise",
   )
   
   name = models.CharField(
@@ -99,7 +108,6 @@ class Appointment(models.Model):
   def __str__(self):
         return self.name 
 
-
 # WORKER
 
 class Worker(models.Model):
@@ -111,6 +119,13 @@ class Worker(models.Model):
     default=uuid.uuid4,
     editable=False,
     unique=True
+  )
+
+  enterprise = models.ForeignKey(
+      Enterprise,
+      on_delete=models.CASCADE,
+      related_name="workerEnterprise",
+      verbose_name="Enterprise",
   )
 
   user = models.OneToOneField(
@@ -145,13 +160,19 @@ class Worker(models.Model):
 
 # WorkerAvailability
 
-
 class WorkerAvailability(models.Model):
     id = models.UUIDField(
       primary_key=True,
       default=uuid.uuid4,
       editable=False,
       unique=True
+    )
+
+    enterprise = models.ForeignKey(
+        Enterprise,
+        on_delete=models.CASCADE,
+        related_name="aworkerAvailabilityEnterprise",
+        verbose_name="Enterprise",
     )
 
     worker = models.OneToOneField(

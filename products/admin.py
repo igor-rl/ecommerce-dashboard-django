@@ -14,6 +14,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("is_active", "created_at")
     readonly_fields = ("slug",)
     ordering = ("-created_at",)
+    exclude = ("enterprise",)
 
     class Media:
         js = ("js/price_mask.js",)
