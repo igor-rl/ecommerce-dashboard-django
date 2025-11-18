@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+<div style="display:flex; align-items:center; gap:12px; padding-left:8px;">
+
+    {% if request.session.enterprise_id %}
+        <a href="{% url 'clear_enterprise' %}"
+            style="
+                    cursor:pointer;
+                    font-size:24px;
+                    font-weight:bold;
+                    text-decoration:none;
+                    padding:4px 10px;
+                    border-radius:6px;
+                    transition:background .2s;
+                "
+            onmouseover="this.style.background='rgba(0,0,0,0.15)'"
+            onmouseout="this.style.background='transparent'">
+                &lt;
+            </a>
+    {% endif %}
+
+    <h1 id="site-name">{{ site_header }}</h1>
+</div>
+{% endblock %}

@@ -17,9 +17,15 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from core.admin import custom_admin_site
+from django.shortcuts import redirect
+
+def clear_enterprise(request):
+    request.session.pop("enterprise_id", None)
+    return redirect("/admin/")  # middleware controla o resto
 
 urlpatterns = [
     path('', include('public.urls')),
     path('perfil/', include('perfil.urls')),
+    path("admin/clear-enterprise/", clear_enterprise, name="clear_enterprise"),
     path('admin/', custom_admin_site.urls),
 ]

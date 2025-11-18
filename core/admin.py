@@ -10,8 +10,8 @@ class CustomAdminSite(AdminSite):
 
     def each_context(self, request):
         ctx = super().each_context(request)
-        enterprise_id = request.session.get("enterprise_id")
 
+        enterprise_id = request.session.get("enterprise_id")
         if enterprise_id:
             try:
                 enterprise = Enterprise.objects.get(id=enterprise_id)
@@ -26,7 +26,7 @@ class CustomAdminSite(AdminSite):
 
 custom_admin_site = CustomAdminSite(name="custom_admin")
 
-# Registrar automaticamente todos os models já registrados no admin padrão
+# --- clonar models do admin padrão ---
 for model, model_admin in admin.site._registry.items():
     try:
         custom_admin_site.register(model, model_admin.__class__)
