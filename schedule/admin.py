@@ -120,13 +120,46 @@ class WorkerAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 
     form = WorkerAvailabilityForm
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ["created_at", "updated_at"]
 
     class Media:
         css = {'all': ('css/custom.css',)}
         js = ('js/time-mask.js',)
 
-    list_display = ['worker_email', 'display_availability', 'created_at', 'updated_at']
+    list_display = ["worker_email", "display_availability", "created_at", "updated_at"]
+
+    # ---------------------------
+    # FILTRO DO CAMPO WORKER
+    # ---------------------------
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+
+        if db_field.name == "worker" and not request.user.is_superuser:
+
+            enterprise_id = request.session.get("enterprise_id")
+
+            kwargs["queryset"] = Worker.objects.filter(
+                enterprise_id=enterprise_id
+            )
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    # ---------------------------
+    # SALVA ENTERPRISE AUTOMATICAMENTE
+    # ---------------------------
+    def save_model(self, request, obj, form, change):
+
+        # Se não for superusuário, enterprise vem SEMPRE da sessão
+        if not request.user.is_superuser:
+            obj.enterprise_id = request.session.get("enterprise_id")
+
+        # Segurança extra — obrigamos a disponibilidade a pertencer
+        # à mesma empresa do worker selecionado.
+        if obj.worker:
+            obj.enterprise_id = obj.worker.enterprise_id
+
+        super().save_model(request, obj, form, change)
+
+    # ---------------------------
 
     def worker_email(self, obj):
         return obj.worker.user.email if obj.worker and obj.worker.user else "-"
@@ -134,10 +167,12 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if obj:  # editando existente
-            return self.readonly_fields + ['worker']
+            return self.readonly_fields + ["worker"]
         return self.readonly_fields
 
-    # AGRUPAMENTO ORGANIZADO POR DIAS
+    # ---------------------------
+    # FIELDSETS
+    # ---------------------------
     fieldsets = (
         ('Agenda', {'fields': ('worker',)}),
 
@@ -196,7 +231,9 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
         }),
     )
 
-    # Render Bonita das Disponibilidades
+    # ---------------------------
+    # DISPLAY DAS DISPONIBILIDADES
+    # ---------------------------
     def display_availability(self, obj):
         dias = [
             ('Seg', obj.monday),
@@ -222,7 +259,4 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
                     f"<div style='margin-bottom:3px;'><strong>{dia}:</strong> {' / '.join(faixas)}</div>"
                 )
 
-        if not html:
-            return "–"
-
-        return mark_safe("".join(html))
+        return mark_safe("".join(html)) if html else "–"

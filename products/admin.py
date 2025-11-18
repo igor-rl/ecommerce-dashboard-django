@@ -1,11 +1,11 @@
 from django.contrib import admin
 from .models import Product
 from .forms import ProductForm
+from organization.models import Enterprise
 
 
-@admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    
+
     form = ProductForm
 
     list_display = ("name", "get_price_display", "stock", "is_active", "get_created_short")
@@ -14,11 +14,41 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("is_active", "created_at")
     readonly_fields = ("slug",)
     ordering = ("-created_at",)
-    exclude = ("enterprise",)
 
     class Media:
         js = ("js/price_mask.js",)
 
+    # ----------------------------------------------------------
+    # FILTRA PRODUTOS POR enterprise_id (igual agendas/atendimentos)
+    # ----------------------------------------------------------
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+
+        enterprise_id = request.session.get("enterprise_id")
+        return qs.filter(enterprise_id=enterprise_id)
+
+    # ----------------------------------------------------------
+    # REMOVE O CAMPO ENTERPRISE DO FORMULÁRIO (usuário comum)
+    # ----------------------------------------------------------
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj)
+        if not request.user.is_superuser:
+            return [f for f in fields if f != "enterprise"]
+        return fields
+
+    # ----------------------------------------------------------
+    # GARANTE QUE O ENTERPRISE VEM DA SESSÃO AO SALVAR
+    # ----------------------------------------------------------
+    def save_model(self, request, obj, form, change):
+        if not request.user.is_superuser:
+            obj.enterprise_id = request.session.get("enterprise_id")
+        super().save_model(request, obj, form, change)
+
+    # ----------------------------------------------------------
+    # FORMATAÇÕES
+    # ----------------------------------------------------------
     @staticmethod
     def get_price_display(obj):
         if obj.price is None:
@@ -35,3 +65,6 @@ class ProductAdmin(admin.ModelAdmin):
         return obj.created_at.strftime("%d/%m/%y %H:%M")
     get_created_short.short_description = "Criado em"
     get_created_short.admin_order_field = "created_at"
+
+
+admin.site.register(Product, ProductAdmin)
