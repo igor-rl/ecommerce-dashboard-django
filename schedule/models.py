@@ -139,6 +139,7 @@ class Worker(models.Model):
     Appointment,
     related_name="workers",
     blank=True,
+    null=True,
     verbose_name="Atendimentos"
   )
 
