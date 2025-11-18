@@ -1,4 +1,26 @@
-<h1>Olá {{ request.user.username }}</h1>
-<p>Bem-vindo ao seu painel de perfil.</p>
+<h1>Selecione sua Empresa</h1>
 
-<a href="/admin/">Ir para o Admin</a>
+<form action="/admin/logout/" method="post" style="display:inline;">
+  {% csrf_token %}
+  <button type="submit">Sair</button>
+</form>
+
+
+<table border="1" cellpadding="8">
+    <thead>
+        <tr>
+            <th>Nome da Empresa</th>
+            <th>Acessar</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in enterprises %}
+            <tr>
+                <td>{{ e.name }}</td>
+                <td>
+                    <a href="{% url 'selecionar_empresa' e.id %}">Acessar</a>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
