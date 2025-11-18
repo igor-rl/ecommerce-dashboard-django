@@ -29,6 +29,22 @@ class EnterpriseAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        # Superusuário vê todas as empresas
+        if request.user.is_superuser:
+            return qs
+
+        # Usuário comum → filtrar pela enterprise ativa
+        enterprise_id = request.session.get("enterprise_id")
+
+        if enterprise_id:
+            return qs.filter(id=enterprise_id)
+
+        # Se não tiver enterprise na sessão, não mostrar nada
+        return qs.none()
+
     # Exibe cidade resumida na tabela
     def city_display(self, obj):
         if obj.address_city and obj.address_state:
