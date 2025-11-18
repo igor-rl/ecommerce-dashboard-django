@@ -96,12 +96,12 @@ class Member(models.Model):
         related_name="members",
     )
 
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="member_profile",
+        related_name="memberships",
     )
 
     name = models.CharField(max_length=120)

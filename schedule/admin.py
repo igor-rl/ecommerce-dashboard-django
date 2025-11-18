@@ -139,7 +139,7 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 
     # AGRUPAMENTO ORGANIZADO POR DIAS
     fieldsets = (
-        ('Colaborador', {'fields': ('worker',)}),
+        ('Agenda', {'fields': ('worker',)}),
 
         ('Segunda-feira', {
             'fields': (

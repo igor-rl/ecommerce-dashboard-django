@@ -110,13 +110,28 @@ class MemberAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
     search_fields = ("name", "email", "cpf")
     ordering = ("name",)
 
-    # Exibir badge estilizada para status do convite
+    # ============
+    # Domínio da empresa (superuser only)
+    # ============
+    def domain_display(self, obj):
+        return obj.enterprise.contract.domain
+    domain_display.short_description = "Domínio"
+
+    def get_list_display(self, request):
+        base = list(self.list_display)
+        if request.user.is_superuser:
+            return ["domain_display"] + base
+        return base
+
+    # ============
+    # Badge do status
+    # ============
     def invite_status_badge(self, obj):
         colors = {
-            "sent": "#3498db",       # azul
-            "not_sent": "#7f8c8d",   # cinza
-            "accepted": "#2ecc71",   # verde
-            "rejected": "#e74c3c",   # vermelho
+            "sent": "#3498db",
+            "not_sent": "#7f8c8d",
+            "accepted": "#2ecc71",
+            "rejected": "#e74c3c",
         }
 
         color = colors.get(obj.invite_status, "#7f8c8d")

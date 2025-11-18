@@ -4,9 +4,9 @@ from organization.models import Enterprise
 
 @login_required
 def perfil(request):
-    # Buscar todas empresas vinculadas ao usuário
+    # Buscar todas empresas onde o usuário é membro
     enterprises = Enterprise.objects.filter(
-        workerEnterprise__user=request.user
+        members__user=request.user
     ).distinct()
 
     context = {
@@ -14,6 +14,7 @@ def perfil(request):
     }
 
     return render(request, "perfil/perfil.html", context)
+
 
 
 @login_required

@@ -48,8 +48,8 @@ class Migration(migrations.Migration):
                 ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='worker_profile', to=settings.AUTH_USER_MODEL, verbose_name='Usuário do Painel')),
             ],
             options={
-                'verbose_name': 'Colaborador',
-                'verbose_name_plural': 'Colaboradores',
+                'verbose_name': 'Agenda',
+                'verbose_name_plural': 'Agendas',
                 'ordering': ['-created_at'],
             },
         ),
@@ -67,7 +67,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Created at')),
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Updated at')),
                 ('enterprise', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='aworkerAvailabilityEnterprise', to='organization.enterprise', verbose_name='Enterprise')),
-                ('worker', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='availability', to='schedule.worker', verbose_name='Colaborador')),
+                ('worker', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='availability', to='schedule.worker', verbose_name='Agenda')),
             ],
             options={
                 'verbose_name': 'Disponibilidade',

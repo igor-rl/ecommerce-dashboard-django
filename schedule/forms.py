@@ -83,7 +83,7 @@ class WorkerAvailabilityForm(forms.ModelForm):
         if "worker" not in self.fields:
             self.fields["worker"] = forms.ModelChoiceField(
                 queryset=Worker.objects.filter(availability__isnull=True),
-                label="Colaborador",
+                label="Agenda",
                 required=True,
             )
 

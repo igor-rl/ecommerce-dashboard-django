@@ -24,13 +24,13 @@ class Contract(models.Model):
         ]
     )
 
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="contract_owner",
+        related_name="contracts",
         verbose_name="Usuário do Painel"
     )
-
+    
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
 
     valid_until = models.DateField(
