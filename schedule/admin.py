@@ -7,38 +7,71 @@ from organization.models import Enterprise
 
 
 # ============================================================
-# 🔥 MIXIN — Filtro automático por enterprise
+# 🔥 MIXIN — Filtro automático + exibir domínio depois do nome
 # ============================================================
 class EnterpriseFilteredAdminMixin:
-    """Limita dados pela enterprise ativa (se não for superusuário)."""
 
-    # 1. Filtra o queryset automaticamente
     def get_queryset(self, request):
         qs = super().get_queryset(request)
+
         if request.user.is_superuser:
             return qs
+
         enterprise_id = request.session.get("enterprise_id")
         return qs.filter(enterprise_id=enterprise_id)
 
-    # 2. Limita o campo enterprise no formulário
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "enterprise" and not request.user.is_superuser:
             enterprise_id = request.session.get("enterprise_id")
             kwargs["queryset"] = Enterprise.objects.filter(id=enterprise_id)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    # 3. Enterprise é preenchido automaticamente ao salvar
     def save_model(self, request, obj, form, change):
         if hasattr(obj, "enterprise") and not request.user.is_superuser:
             obj.enterprise_id = request.session.get("enterprise_id")
         super().save_model(request, obj, form, change)
 
-    # 4. Oculta enterprise do formulário para usuários comuns
     def get_fields(self, request, obj=None):
         fields = super().get_fields(request, obj)
         if not request.user.is_superuser:
             return [f for f in fields if f != "enterprise"]
         return fields
+
+    # ================================================
+    # 🔥 Método padrão para exibir domínio
+    # ================================================
+    def get_enterprise_domain(self, obj):
+        return obj.enterprise.domain if obj.enterprise else "-"
+    get_enterprise_domain.short_description = "Domínio"
+    get_enterprise_domain.admin_order_field = "enterprise__domain"
+
+    # ============================================================
+    # 🚀 Insere domínio depois do nome em TODAS as listagens
+    # ============================================================
+    def get_list_display(self, request):
+
+        base = list(self.list_display)
+
+        if not request.user.is_superuser:
+            return tuple(base)
+
+        insert_after = None
+
+        # Tenta encontrar o campo "name", "get_user_full_name", etc.
+        name_like_fields = ["name", "get_user_full_name", "worker_email"]
+
+        for field in name_like_fields:
+            if field in base:
+                insert_after = field
+                break
+
+        if insert_after:
+            idx = base.index(insert_after) + 1
+            base.insert(idx, "get_enterprise_domain")
+        else:
+            base.insert(0, "get_enterprise_domain")
+
+        return tuple(base)
 
 
 
@@ -98,9 +131,7 @@ class WorkerAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 
     def get_appointments_names(self, obj):
         names = [a.name for a in obj.appointments.all()]
-        if not names:
-            return "-"
-        return ", ".join(names)
+        return ", ".join(names) if names else "-"
     get_appointments_names.short_description = "Atendimentos"
 
     @staticmethod
@@ -128,112 +159,30 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
 
     list_display = ["worker_email", "display_availability", "created_at", "updated_at"]
 
-    # ---------------------------
-    # FILTRO DO CAMPO WORKER
-    # ---------------------------
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-
         if db_field.name == "worker" and not request.user.is_superuser:
-
             enterprise_id = request.session.get("enterprise_id")
-
-            kwargs["queryset"] = Worker.objects.filter(
-                enterprise_id=enterprise_id
-            )
-
+            kwargs["queryset"] = Worker.objects.filter(enterprise_id=enterprise_id)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    # ---------------------------
-    # SALVA ENTERPRISE AUTOMATICAMENTE
-    # ---------------------------
     def save_model(self, request, obj, form, change):
-
-        # Se não for superusuário, enterprise vem SEMPRE da sessão
         if not request.user.is_superuser:
             obj.enterprise_id = request.session.get("enterprise_id")
 
-        # Segurança extra — obrigamos a disponibilidade a pertencer
-        # à mesma empresa do worker selecionado.
         if obj.worker:
             obj.enterprise_id = obj.worker.enterprise_id
 
         super().save_model(request, obj, form, change)
-
-    # ---------------------------
 
     def worker_email(self, obj):
         return obj.worker.user.email if obj.worker and obj.worker.user else "-"
     worker_email.short_description = "E-mail"
 
     def get_readonly_fields(self, request, obj=None):
-        if obj:  # editando existente
+        if obj:
             return self.readonly_fields + ["worker"]
         return self.readonly_fields
 
-    # ---------------------------
-    # FIELDSETS
-    # ---------------------------
-    fieldsets = (
-        ('Agenda', {'fields': ('worker',)}),
-
-        ('Segunda-feira', {
-            'fields': (
-                ('monday_start_at', 'monday_finish_at'),
-                ('monday_start_at_b', 'monday_finish_at_b'),
-            ),
-        }),
-
-        ('Terça-feira', {
-            'fields': (
-                ('tuesday_start_at', 'tuesday_finish_at'),
-                ('tuesday_start_at_b', 'tuesday_finish_at_b'),
-            ),
-        }),
-
-        ('Quarta-feira', {
-            'fields': (
-                ('wednesday_start_at', 'wednesday_finish_at'),
-                ('wednesday_start_at_b', 'wednesday_finish_at_b'),
-            ),
-        }),
-
-        ('Quinta-feira', {
-            'fields': (
-                ('thursday_start_at', 'thursday_finish_at'),
-                ('thursday_start_at_b', 'thursday_finish_at_b'),
-            ),
-        }),
-
-        ('Sexta-feira', {
-            'fields': (
-                ('friday_start_at', 'friday_finish_at'),
-                ('friday_start_at_b', 'friday_finish_at_b'),
-            ),
-        }),
-
-        ('Sábado', {
-            'fields': (
-                ('saturday_start_at', 'saturday_finish_at'),
-                ('saturday_start_at_b', 'saturday_finish_at_b'),
-            ),
-        }),
-
-        ('Domingo', {
-            'fields': (
-                ('sunday_start_at', 'sunday_finish_at'),
-                ('sunday_start_at_b', 'sunday_finish_at_b'),
-            ),
-        }),
-
-        ('Informações do Sistema', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',),
-        }),
-    )
-
-    # ---------------------------
-    # DISPLAY DAS DISPONIBILIDADES
-    # ---------------------------
     def display_availability(self, obj):
         dias = [
             ('Seg', obj.monday),
@@ -249,14 +198,16 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
         for dia, turnos in dias:
             if not turnos:
                 continue
-            faixas = []
-            for t in turnos:
-                if t and all(t):
-                    inicio, fim = t
-                    faixas.append(f"<span style='color:#f5b342;'>{inicio}–{fim}</span>")
+
+            faixas = [
+                f"<span style='color:#f5b342;'>{inicio}–{fim}</span>"
+                for inicio, fim in turnos if inicio and fim
+            ]
+
             if faixas:
                 html.append(
                     f"<div style='margin-bottom:3px;'><strong>{dia}:</strong> {' / '.join(faixas)}</div>"
                 )
 
         return mark_safe("".join(html)) if html else "–"
+    display_availability.short_description = "Horários"
