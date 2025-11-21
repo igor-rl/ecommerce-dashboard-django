@@ -2,8 +2,9 @@ from django.contrib import admin
 from django.db.models import F, Value
 from django.db.models.functions import Coalesce
 from .models import Enterprise
-from organization.models import Member, Enterprise
+from organization.models import Member, Enterprise, SchedulingConfig
 from django.utils.html import format_html
+from django.urls import reverse
 
 # ============================================================
 # ENTERPRISE ADMIN
@@ -68,7 +69,6 @@ class EnterpriseAdmin(admin.ModelAdmin):
             return f"{obj.address_city}/{obj.address_state}"
         return "-"
     city_display.short_description = "Cidade"
-
 
 
 # ============================================================
@@ -178,3 +178,82 @@ class MemberAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
             "classes": ("collapse",),
         }),
     )
+
+
+# ============================================================
+# SCHEDULING CONFIG ADMIN
+# ============================================================
+@admin.register(SchedulingConfig)
+class SchedulingConfigAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
+
+    list_display = ("overlap_tolerance",)
+    ordering = ("enterprise__contract__domain",)
+    search_fields = ("enterprise__contract__domain",)
+
+    readonly_fields = ("created_at", "updated_at")
+
+    fieldsets = (
+        ("Configuração de Agendamento", {
+            "fields": ("enterprise", "overlap_tolerance"),
+        }),
+        ("Sistema", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",),
+        }),
+    )
+
+    # --------------------------
+    # Botão EDITAR apenas para usuários comuns
+    # --------------------------
+    def edit_link(self, obj):
+        url = reverse("admin:organization_schedulingconfig_change", args=[obj.pk])
+        return format_html(f'<a class="button" href="{url}">Editar</a>')
+    edit_link.short_description = "Editar"
+
+    # --------------------------
+    # Domínio visível só para superuser
+    # --------------------------
+    def domain_display(self, obj):
+        if obj.enterprise and obj.enterprise.contract:
+            return obj.enterprise.contract.domain
+        return "-"
+    domain_display.short_description = "Domínio"
+    domain_display.admin_order_field = "enterprise__contract__domain"  # ✔ agora é ordenável!
+
+    # --------------------------
+    # List Display dinâmico
+    # --------------------------
+    def get_list_display(self, request):
+        base = ["overlap_tolerance"]
+
+        if request.user.is_superuser:
+            # domínio aparece antes de tudo
+            return ["domain_display"] + base
+
+        # usuário comum → mostrar botão editar
+        return ["edit_link"] + base
+
+    # --------------------------
+    # Filtros dinâmicos
+    # --------------------------
+    def get_list_filter(self, request):
+        if request.user.is_superuser:
+            # ✔ filtro por domínio só para superuser
+            return ("enterprise__contract__domain",)
+
+        return ()
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+
+        # Usuário comum → remover 'enterprise' do fieldset
+        if not request.user.is_superuser:
+            new_fieldsets = []
+            for title, opts in fieldsets:
+                fields = opts.get("fields", ())
+                # remove enterprise
+                cleaned_fields = tuple(f for f in fields if f != "enterprise")
+                new_fieldsets.append((title, {"fields": cleaned_fields, **{k: v for k, v in opts.items() if k != "fields"}}))
+            return new_fieldsets
+
+        return fieldsets

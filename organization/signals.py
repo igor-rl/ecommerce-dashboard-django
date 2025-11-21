@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from organization.models import Enterprise
+from organization.models import Enterprise, SchedulingConfig
 from .models import Member
 
 
@@ -26,3 +26,19 @@ def create_owner_member(sender, instance, created, **kwargs):
         invite_status="accepted"
     )
 
+
+# =====================================
+# 🔥 Criar Configuração Automaticamente
+# =====================================
+@receiver(post_save, sender=Enterprise)
+def create_scheduling_config(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    # Evita duplicação caso já exista
+    if hasattr(instance, "scheduling_config"):
+        return
+
+    SchedulingConfig.objects.create(
+        enterprise=instance
+    )
