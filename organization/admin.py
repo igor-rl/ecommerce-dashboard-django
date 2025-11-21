@@ -1,8 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from organization.models import Member, Enterprise
-
+from organization.models import Member, Enterprise, SchedulingConfig
 
 # ============================================================
 # ENTERPRISE ADMIN
@@ -182,3 +181,58 @@ class MemberAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
         )
 
     invite_status_badge.short_description = "Status do Convite"
+
+
+# ============================================================
+# SCHEDULING CONFIG ADMIN
+# ============================================================
+@admin.register(SchedulingConfig)
+class SchedulingConfigAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
+
+    list_display = (
+        "enterprise",
+        "overlap_tolerance",
+        "get_enterprise_domain",
+        "created_at",
+        "updated_at",
+    )
+
+    search_fields = ("enterprise__name",)
+    readonly_fields = ("created_at", "updated_at")
+
+    ordering = ("enterprise__name",)
+
+    fieldsets = (
+        ("Configurações de Agendamento", {
+            "fields": ("enterprise", "overlap_tolerance")
+        }),
+        ("Sistema", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+    # ============================================================
+    # Se o usuário NÃO for superuser:
+    # - Mostrar SOMENTE a configuração da própria empresa
+    # - Remover o campo enterprise do form
+    # ============================================================
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        if request.user.is_superuser:
+            return qs
+
+        enterprise_id = request.session.get("enterprise_id")
+        return qs.filter(enterprise_id=enterprise_id)
+
+
+    # Remove campo enterprise para usuários comuns
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj)
+
+        if not request.user.is_superuser:
+            return [f for f in fields if f != "enterprise"]
+
+        return fields

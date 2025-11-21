@@ -153,6 +153,50 @@ class Member(models.Model):
         return f"{self.name} ({self.role})"
 
 
+from django.db import models
+from organization.models import Enterprise
+
+
+class SchedulingConfig(models.Model):
+    """
+    Armazena as configurações de agendamento para uma empresa.
+    Cada empresa pode ter apenas uma configuração.
+    """
+
+    enterprise = models.OneToOneField(
+        Enterprise,
+        on_delete=models.CASCADE,
+        related_name="scheduling_config",
+        verbose_name="Empresa",
+    )
+
+    overlap_tolerance = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Tolerância de Sobreposição (minutos)",
+        help_text=(
+            "Permite aceitar agendamentos que invadam até essa quantidade "
+            "de minutos do próximo horário disponível."
+        ),
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Criado em"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Atualizado em"
+    )
+
+    class Meta:
+        verbose_name = "Configuração de Agendamento"
+        verbose_name_plural = "Configurações de Agendamentos"
+
+    def __str__(self):
+        return f"Configuração de Agendamento - {self.enterprise.name}"
+  
+
+
 # TODO
 # ------------------------
 # Criar uma model para armazenar os tokens de convites com uma validate_domain_name
