@@ -153,10 +153,6 @@ class Member(models.Model):
         return f"{self.name} ({self.role})"
 
 
-from django.db import models
-from organization.models import Enterprise
-
-
 class SchedulingConfig(models.Model):
     """
     Armazena as configurações de agendamento para uma empresa.
