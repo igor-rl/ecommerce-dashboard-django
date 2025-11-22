@@ -1,10 +1,12 @@
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import uuid
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
 from organization.models import Enterprise
-
+from clientes.models import Client
+from django.core.exceptions import ValidationError
 
 # ============================================================
 # APPOINTMENT
@@ -187,3 +189,278 @@ class WorkerAvailability(models.Model):
         if self.worker and self.worker.user:
             return f"{self.worker.user.get_full_name() or self.worker.user.username} ({self.worker.user.email})"
         return f"Worker Availability #{self.id}"
+
+
+# ============================================================
+# AGENDAMENTO
+# ============================================================
+class Scheduling(models.Model):
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        unique=True
+    )
+
+    enterprise = models.ForeignKey(
+        Enterprise,
+        on_delete=models.CASCADE,
+        related_name="bookings",
+        verbose_name="Empresa",
+    )
+
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name="bookings",
+        verbose_name="Profissional / Agenda",
+    )
+
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="scheduling",
+        verbose_name="Cliente"
+    )
+
+    appointments = models.ManyToManyField(
+        Appointment,
+        related_name="bookings",
+        verbose_name="Tipos de Atendimento"
+    )
+
+    date = models.DateField(verbose_name="Data")
+    start_time = models.TimeField(verbose_name="Início")
+
+    # calculados automaticamente
+    end_time = models.TimeField(
+        verbose_name="Horário de Fim",
+        blank=True,
+        null=True
+    )
+
+    duration = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Duração Total (min)"
+    )
+    
+    notes = models.TextField(blank=True, null=True, verbose_name="Observações")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        verbose_name = "Agendamento"
+        verbose_name_plural = "Agendamentos"
+        ordering = ["date", "start_time"]
+
+    def __str__(self):
+        return f"{self.worker} - {self.date} {self.start_time}"
+
+    # ==============================================================
+    # 🔥 CALCULA DURAÇÃO TOTAL + END_TIME
+    # ==============================================================
+
+    def update_duration_and_end_time(self):
+        """
+        Calcula duration e end_time baseado nos tipos de atendimentos.
+        """
+
+        # 1) Calcular duração total
+        total_minutes = sum(a.duration for a in self.appointments.all())
+        self.duration = total_minutes
+
+        # 2) Calcular horário de fim
+        if self.start_time and self.date and total_minutes > 0:
+            start_dt = datetime.combine(self.date, self.start_time)
+            end_dt = start_dt + timedelta(minutes=total_minutes)
+            self.end_time = end_dt.time()
+        else:
+            self.end_time = None
+
+    def ensure_scheduling_window(self):
+        worker = self.worker
+        date = self.date
+
+        # 1) verifica se já existe
+        window = SchedulingWindow.objects.filter(
+            worker=worker,
+            date=date
+        ).first()
+
+        if window:
+            return window
+
+        # 2) buscar availability
+        availability = worker.availability
+        if not availability:
+            return None
+
+        weekday = date.weekday()
+
+        day_keys = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ]
+
+        day_field = day_keys[weekday]
+
+        intervals_raw = getattr(availability, day_field, [])
+
+        if not intervals_raw:
+            return None
+
+        # 3) criar janela
+        window = SchedulingWindow.objects.create(
+            enterprise_id=worker.enterprise_id,
+            worker=worker,
+            date=date
+        )
+
+        # 4) criar intervalos da janela
+        for interval in intervals_raw:
+            SchedulingWindowInterval.objects.create(
+                window=window,
+                start_time=interval["start"],
+                end_time=interval["end"]
+            )
+
+        return window
+
+    def clean(self):
+        super().clean()
+
+        # 1 — garantir janela criada
+        window = self.ensure_scheduling_window()
+
+        if not window:
+            raise ValidationError("Não há disponibilidade cadastrada para este trabalhador neste dia.")
+
+        # 2 — pegar intervalos
+        intervals = window.intervals.all()
+
+        if not intervals:
+            raise ValidationError("Este dia não possui janelas de agendamento.")
+
+        # 3 — validar se horário está dentro das janelas
+        valid = False
+        for interval in intervals:
+            if interval.start_time <= self.start_time < interval.end_time:
+                valid = True
+                break
+
+        if not valid:
+            raise ValidationError(
+                f"O horário {self.start_time} está fora da janela disponível do trabalhador."
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+        self.ensure_scheduling_window()
+
+
+
+# ============================================================
+# JANELA DE AGENDAMENTO
+# ============================================================
+class SchedulingWindow(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+
+    enterprise = models.ForeignKey(
+        Enterprise,
+        on_delete=models.CASCADE,
+        related_name="scheduling_windows"
+    )
+
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name="scheduling_windows"
+    )
+
+    date = models.DateField()
+
+    class Meta:
+        unique_together = (("worker", "date"),)
+        verbose_name = "Scheduling Window"
+        verbose_name_plural = "Scheduling Windows"
+        ordering = ("date",)
+
+    def __str__(self):
+        return f"{self.worker} — {self.date}"
+
+    def generate_slots(self, appointment_duration_minutes):
+        """
+        Gera slots disponíveis com base nas janelas e duração do agendamento.
+        """
+        slots = []
+
+        for interval in self.intervals.all():
+            start_dt = datetime.combine(self.date, interval.start_time)
+            end_dt   = datetime.combine(self.date, interval.end_time)
+
+            duration = timedelta(minutes=appointment_duration_minutes)
+            current = start_dt
+
+            while current + duration <= end_dt:
+                slots.append(current.time())
+                current += duration
+
+        return slots
+
+
+# ============================================================
+# INTERVALO DA JANELA DE AGENDAMENTO 
+# ============================================================
+class SchedulingWindowInterval(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+
+    window = models.ForeignKey(
+        SchedulingWindow,
+        on_delete=models.CASCADE,
+        related_name="intervals"
+    )
+
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    duration = models.PositiveIntegerField(editable=False)
+
+    class Meta:
+        ordering = ("start_time",)
+
+    def save(self, *args, **kwargs):
+        start_dt = datetime.combine(datetime.today(), self.start_time)
+        end_dt = datetime.combine(datetime.today(), self.end_time)
+
+        if end_dt <= start_dt:
+            raise ValueError("end_time must be greater than start_time")
+
+        delta = end_dt - start_dt
+        self.duration = int(delta.total_seconds() // 60)
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.start_time}–{self.end_time} ({self.duration} min)"
+
+
+
+"""
+TODO: regra de exibicao de horarios de agendamentos:
+
+""" 

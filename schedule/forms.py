@@ -1,7 +1,10 @@
 from django import forms
 from decimal import Decimal, InvalidOperation
+from django.forms import CheckboxSelectMultiple
 
-from .models import Appointment, Worker, WorkerAvailability
+from schedule.domain.services.available_time_service import AvailableTimeService
+
+from .models import Appointment, Worker, WorkerAvailability, Scheduling
 
 
 class AppointmentForm(forms.ModelForm):
@@ -203,3 +206,54 @@ class WorkerAvailabilityForm(forms.ModelForm):
             instance.save()
 
         return instance
+
+
+class SchedulingAdminForm(forms.ModelForm):
+
+    schedule_option = forms.ChoiceField(
+        label="Horário do Atendimento",
+        required=False
+    )
+
+    class Meta:
+        model = Scheduling
+        fields = "__all__"
+        widgets = {
+            "appointments": CheckboxSelectMultiple
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Começa SEM horários
+        self.fields["schedule_option"].choices = [
+            ("", "Selecione um horário")
+        ]
+
+        request = getattr(self, "request", None)
+        if not request:
+            return
+
+        worker_id = request.GET.get("worker")
+        date = request.GET.get("date")
+        appointments = request.GET.get("appointments", "")
+        appointments_list = appointments.split(",") if appointments else []
+
+        # Não tem todos os requisitos → não carrega horários
+        if not worker_id or not date or not appointments:
+            return
+
+        # Se chegou aqui → agora vamos carregar horários
+        sequences = AvailableTimeService.generate_time_ranges(
+            worker_id,
+            date,
+            appointments_list
+        )
+
+        self.fields["schedule_option"].choices = [
+            ("", "Selecione um horário")
+        ] + [
+            (key, f"das {value['horario_inicio']} às {value['horario_fim']}")
+            for key, value in sequences.items()
+        ]
+

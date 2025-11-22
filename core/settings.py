@@ -42,9 +42,10 @@ INSTALLED_APPS = [
     'public',
     'organization',
     'products',
-    'schedule',
     'management',
     'perfil',
+    'clientes',
+    'schedule',
 ]
 
 MIDDLEWARE = [

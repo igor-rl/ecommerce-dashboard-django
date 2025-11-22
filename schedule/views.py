@@ -2,6 +2,12 @@ from django.shortcuts import render, redirect
 from .forms import WorkerAvailabilityForm
 from .models import WorkerAvailability
 
+
+from django.http import JsonResponse
+from schedule.domain.services.available_time_service import AvailableTimeService
+from schedule.models import Appointment
+from datetime import datetime
+
 def criar_evento(request):
     if request.method == 'POST':
         form = WorkerAvailabilityForm(request.POST)
@@ -80,3 +86,28 @@ def criar_evento(request):
     else:
         form = WorkerAvailabilityForm()
     return render(request, 'availability_form.html', {'form': form})
+
+
+
+def get_available_hours(request):
+    worker_id = request.GET.get("worker")
+    date_str = request.GET.get("date")
+    appointments_ids = request.GET.getlist("appointments[]")
+
+    if not worker_id or not date_str:
+        return JsonResponse({}, safe=False)
+
+    try:
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except:
+        return JsonResponse({}, safe=False)
+
+    appointments = Appointment.objects.filter(id__in=appointments_ids)
+
+    result = AvailableTimeService.generate_time_ranges(
+        worker_id,
+        date,
+        appointments,
+    )
+
+    return JsonResponse(result, safe=False)

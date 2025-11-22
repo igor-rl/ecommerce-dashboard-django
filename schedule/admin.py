@@ -3,9 +3,11 @@ from django.utils.html import format_html
 from django import forms
 import traceback
 
-from schedule.forms import AppointmentForm, WorkerAvailabilityForm
-from .models import Appointment, Worker, WorkerAvailability
+from schedule.domain.services.available_time_service import AvailableTimeService
+from schedule.forms import AppointmentForm, SchedulingAdminForm, WorkerAvailabilityForm
+from .models import Appointment, Worker, WorkerAvailability, Scheduling
 from organization.models import Enterprise, Member
+from clientes.models import Client
 
 
 # ============================================================
@@ -92,6 +94,16 @@ class AppointmentAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
     def get_created_short(obj):
         return obj.created_at.strftime("%d/%m/%y %H:%M") if obj.created_at else "-"
     get_created_short.short_description = "Criado em"
+
+    def save_model(self, request, obj, form, change):
+
+        # Apenas usuários normais precisam deste ajuste
+        if not request.user.is_superuser:
+            enterprise_id = request.session.get("enterprise_id")
+            obj.enterprise_id = enterprise_id
+
+        # Agora sim salva
+        super().save_model(request, obj, form, change)
 
 
 # ============================================================
@@ -328,3 +340,113 @@ class WorkerAvailabilityAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
         return format_html("".join(html)) if html else "–"
 
     display_availability.short_description = "Horários"
+
+
+# ============================================================
+# SCHEDULING ADMIN
+# ============================================================
+@admin.register(Scheduling)
+class SchedulingAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
+    form = SchedulingAdminForm
+
+    list_display = (
+        "date",
+        "start_time",
+        "end_time",
+        "duration",
+        "worker",
+        "client",
+    )
+
+    ordering = ("date", "start_time")
+    list_filter = ("date",)
+    search_fields = ("worker__user__username", "client__name")
+    filter_horizontal = ("appointments",)
+
+    class Media:
+        js = (
+            "/static/js/scheduling-filter-by-worker.js",
+            "/static/js/scheduling-edit-selected-appointments.js",
+        )
+
+    # ------------------------------------------------------------
+    # Filtrar FK conforme enterprise
+    # ------------------------------------------------------------
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.request = request
+        if not request.user.is_superuser:
+            enterprise_id = request.session.get("enterprise_id")
+
+            if "worker" in form.base_fields:
+                form.base_fields["worker"].queryset = Worker.objects.filter(
+                    enterprise_id=enterprise_id
+                )
+
+            if "client" in form.base_fields:
+                form.base_fields["client"].queryset = Client.objects.filter(
+                    enterprise_id=enterprise_id
+                )
+
+        return form
+
+    # ------------------------------------------------------------
+    # Filtrar tipos de atendimento pela agenda (worker)
+    # ------------------------------------------------------------
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+
+        if db_field.name == "appointments":
+            worker_id = request.GET.get("worker")
+
+            if worker_id:
+                kwargs["queryset"] = Appointment.objects.filter(
+                    workers__id=worker_id
+                ).distinct()
+            else:
+                kwargs["queryset"] = Appointment.objects.none()
+
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+    # ------------------------------------------------------------
+    # Campos exibidos (inclui schedule_option)
+    # ------------------------------------------------------------
+    def get_fields(self, request, obj=None):
+        fields = [
+            "worker",
+            "client",
+            "appointments",
+            "date",
+            "schedule_option",
+            "notes",
+        ]
+
+        if request.user.is_superuser:
+            fields.insert(0, "enterprise")
+
+        return fields
+
+    # ------------------------------------------------------------
+    # Fieldsets visuais
+    # ------------------------------------------------------------
+    def get_fieldsets(self, request, obj=None):
+        return [
+            ("Agendamento", {"fields": self.get_fields(request, obj)})
+        ]
+
+    # ------------------------------------------------------------
+    # Enterprise automático
+    # ------------------------------------------------------------
+    def save_model(self, request, obj, form, change):
+        if not request.user.is_superuser:
+            obj.enterprise_id = request.session.get("enterprise_id")
+
+        super().save_model(request, obj, form, change)
+
+    # ------------------------------------------------------------
+    # Calcula duração-total e end_time
+    # ------------------------------------------------------------
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        scheduling = form.instance
+        scheduling.update_duration_and_end_time()
+        scheduling.save(update_fields=["duration", "end_time"])
