@@ -233,7 +233,6 @@ class Scheduling(models.Model):
     date = models.DateField(verbose_name="Data")
     start_time = models.TimeField(verbose_name="Início")
 
-    # calculados automaticamente
     end_time = models.TimeField(
         verbose_name="Horário de Fim",
         blank=True,
@@ -244,7 +243,7 @@ class Scheduling(models.Model):
         default=0,
         verbose_name="Duração Total (min)"
     )
-    
+
     notes = models.TextField(blank=True, null=True, verbose_name="Observações")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
@@ -262,15 +261,9 @@ class Scheduling(models.Model):
     # ==============================================================
 
     def update_duration_and_end_time(self):
-        """
-        Calcula duration e end_time baseado nos tipos de atendimentos.
-        """
-
-        # 1) Calcular duração total
         total_minutes = sum(a.duration for a in self.appointments.all())
         self.duration = total_minutes
 
-        # 2) Calcular horário de fim
         if self.start_time and self.date and total_minutes > 0:
             start_dt = datetime.combine(self.date, self.start_time)
             end_dt = start_dt + timedelta(minutes=total_minutes)
@@ -278,26 +271,23 @@ class Scheduling(models.Model):
         else:
             self.end_time = None
 
+    # ==============================================================
+    # 🔥 Garante janela existente (cria se necessário)
+    # ==============================================================
+
     def ensure_scheduling_window(self):
         worker = self.worker
         date = self.date
 
-        # 1) verifica se já existe
-        window = SchedulingWindow.objects.filter(
-            worker=worker,
-            date=date
-        ).first()
-
+        window = SchedulingWindow.objects.filter(worker=worker, date=date).first()
         if window:
             return window
 
-        # 2) buscar availability
-        availability = worker.availability
+        availability = getattr(worker, "availability", None)
         if not availability:
             return None
 
         weekday = date.weekday()
-
         day_keys = [
             "monday",
             "tuesday",
@@ -309,45 +299,67 @@ class Scheduling(models.Model):
         ]
 
         day_field = day_keys[weekday]
-
         intervals_raw = getattr(availability, day_field, [])
 
         if not intervals_raw:
             return None
 
-        # 3) criar janela
         window = SchedulingWindow.objects.create(
             enterprise_id=worker.enterprise_id,
             worker=worker,
             date=date
         )
 
-        # 4) criar intervalos da janela
+        # Criar intervalos válidos
         for interval in intervals_raw:
+            if not isinstance(interval, (list, tuple)) or len(interval) != 2:
+                continue
+
+            start_raw, end_raw = interval
+
+            try:
+                start_time = datetime.strptime(start_raw, "%H:%M").time()
+                end_time = datetime.strptime(end_raw, "%H:%M").time()
+            except Exception:
+                continue
+
+            if end_time <= start_time:
+                continue
+
             SchedulingWindowInterval.objects.create(
                 window=window,
-                start_time=interval["start"],
-                end_time=interval["end"]
+                start_time=start_time,
+                end_time=end_time
             )
 
+        # Se não criou intervalos válidos, remover janela
+        if not window.intervals.exists():
+            window.delete()
+            return None
+
         return window
+
+    # ==============================================================
+    # 🔥 VALIDAÇÃO
+    # ==============================================================
 
     def clean(self):
         super().clean()
 
-        # 1 — garantir janela criada
         window = self.ensure_scheduling_window()
 
         if not window:
             raise ValidationError("Não há disponibilidade cadastrada para este trabalhador neste dia.")
 
-        # 2 — pegar intervalos
         intervals = window.intervals.all()
-
         if not intervals:
             raise ValidationError("Este dia não possui janelas de agendamento.")
 
-        # 3 — validar se horário está dentro das janelas
+        # Se start_time ainda não foi definido pelo form, pula validação
+        if self.start_time is None:
+            return
+
+        # Validar se o horário está dentro de uma janela
         valid = False
         for interval in intervals:
             if interval.start_time <= self.start_time < interval.end_time:
@@ -359,10 +371,17 @@ class Scheduling(models.Model):
                 f"O horário {self.start_time} está fora da janela disponível do trabalhador."
             )
 
+    # ==============================================================
+    # 🔥 Salvar + recálculo
+    # ==============================================================
+
     def save(self, *args, **kwargs):
-        self.full_clean()
+        self.full_clean()     # chama clean()
         super().save(*args, **kwargs)
+
+        # Garante que a janela exista para agendamentos futuros
         self.ensure_scheduling_window()
+
 
 
 
@@ -457,10 +476,3 @@ class SchedulingWindowInterval(models.Model):
 
     def __str__(self):
         return f"{self.start_time}–{self.end_time} ({self.duration} min)"
-
-
-
-"""
-TODO: regra de exibicao de horarios de agendamentos:
-
-""" 

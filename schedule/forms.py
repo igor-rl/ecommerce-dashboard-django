@@ -1,3 +1,4 @@
+from datetime import datetime
 from django import forms
 from decimal import Decimal, InvalidOperation
 from django.forms import CheckboxSelectMultiple
@@ -197,7 +198,7 @@ class WorkerAvailabilityForm(forms.ModelForm):
             if turno_b:
                 turnos.append(turno_b)
 
-            return turnos if turnos else None
+            return turnos
 
         for dia in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
             setattr(instance, dia, clean_day(dia))
@@ -225,7 +226,6 @@ class SchedulingAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Começa SEM horários
         self.fields["schedule_option"].choices = [
             ("", "Selecione um horário")
         ]
@@ -237,23 +237,50 @@ class SchedulingAdminForm(forms.ModelForm):
         worker_id = request.GET.get("worker")
         date = request.GET.get("date")
         appointments = request.GET.get("appointments", "")
-        appointments_list = appointments.split(",") if appointments else []
 
-        # Não tem todos os requisitos → não carrega horários
-        if not worker_id or not date or not appointments:
+        appointments_list = (
+            [] if appointments in ("", None, "null") else appointments.split(",")
+        )
+
+        if not worker_id or not date or not appointments_list:
             return
 
-        # Se chegou aqui → agora vamos carregar horários
+        if request.user.is_superuser:
+            try:
+                worker = Worker.objects.get(id=worker_id)
+                enterprise_id = worker.enterprise_id
+            except Worker.DoesNotExist:
+                return
+        else:
+            enterprise_id = request.session.get("enterprise_id")
+
         sequences = AvailableTimeService.generate_time_ranges(
             worker_id,
             date,
-            appointments_list
+            appointments_list,
+            enterprise_id,
         )
 
         self.fields["schedule_option"].choices = [
             ("", "Selecione um horário")
         ] + [
-            (key, f"das {value['horario_inicio']} às {value['horario_fim']}")
-            for key, value in sequences.items()
+            (
+                value["horario_inicio"],
+                f"das {value['horario_inicio']} às {value['horario_fim']}"
+            )
+            for value in sequences.values()
         ]
+
+    def clean(self):
+        cleaned = super().clean()
+
+        horario = cleaned.get("schedule_option")
+
+        if horario:
+            from datetime import datetime
+            # escreve diretamente no objeto (garantido)
+            self.instance.start_time = datetime.strptime(horario, "%H:%M").time()
+
+        return cleaned
+
 

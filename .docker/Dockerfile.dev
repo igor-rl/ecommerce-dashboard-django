@@ -1,15 +1,13 @@
-# Usa imagem leve do Python 3.12
 FROM python:3.12-slim
 
-# Evita criação de arquivos .pyc e força logs diretos
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV TZ=America/Sao_Paulo
 
-# Define diretório de trabalho
 WORKDIR /home/user/app
 
-# Instala dependências do sistema necessárias para builds de libs Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
     curl \
     build-essential \
     libpq-dev \
@@ -17,15 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     libjpeg-dev \
     git \
+    && ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime \
+    && echo "America/Sao_Paulo" > /etc/timezone \
+    && dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala o pipenv
 RUN pip install --no-cache-dir pipenv
 
-# Copia o código do projeto
 COPY ../ .
 
 RUN pipenv install django
 
-# Mantém o container em pé
 CMD ["tail", "-f", "/dev/null"]

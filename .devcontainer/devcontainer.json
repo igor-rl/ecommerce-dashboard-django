@@ -3,10 +3,27 @@
   "dockerComposeFile": "../.docker/docker-compose.dev.yml",
   "workspaceFolder": "/home/user/app",
   "service": "ecommerce-dashboard",
+
+  "remoteUser": "root",
+
+  "containerEnv": {
+    "TZ": "America/Sao_Paulo",
+    "SHELL": "/usr/bin/zsh"
+  },
+
+  "overrideCommand": false,
+
+  "postCreateCommand": "chsh -s /usr/bin/zsh && ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime",
+
+  "postStartCommand": "ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime",
+
   "settings": {
-    "python.defaultInterpreterPath": "/usr/local/bin/app",
-    "python.terminal.activateEnvironment": false,
-    "terminal.integrated.defaultProfile.linux": "bash"
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "terminal.integrated.profiles.linux": {
+      "zsh": {
+        "path": "/usr/bin/zsh"
+      }
+    }
   },
 
   "features": {
@@ -17,6 +34,7 @@
     },
     "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
   },
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -33,11 +51,10 @@
       ]
     }
   },
+
   "extensions": [
     "ms-python.python",
     "ms-python.vscode-pylance",
     "ms-toolsai.jupyter"
-  ],
-
-  "remoteUser": "root"
+  ]
 }
