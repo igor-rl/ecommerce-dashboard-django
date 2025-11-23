@@ -257,9 +257,8 @@ class Scheduling(models.Model):
         return f"{self.worker} - {self.date} {self.start_time}"
 
     # ==============================================================
-    # 🔥 CALCULA DURAÇÃO TOTAL + END_TIME
+    # 🔥 Calcula duração total + horário de término
     # ==============================================================
-
     def update_duration_and_end_time(self):
         total_minutes = sum(a.duration for a in self.appointments.all())
         self.duration = total_minutes
@@ -272,207 +271,24 @@ class Scheduling(models.Model):
             self.end_time = None
 
     # ==============================================================
-    # 🔥 Garante janela existente (cria se necessário)
+    # 🔥 Validação mínima
     # ==============================================================
-
-    def ensure_scheduling_window(self):
-        worker = self.worker
-        date = self.date
-
-        window = SchedulingWindow.objects.filter(worker=worker, date=date).first()
-        if window:
-            return window
-
-        availability = getattr(worker, "availability", None)
-        if not availability:
-            return None
-
-        weekday = date.weekday()
-        day_keys = [
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-        ]
-
-        day_field = day_keys[weekday]
-        intervals_raw = getattr(availability, day_field, [])
-
-        if not intervals_raw:
-            return None
-
-        window = SchedulingWindow.objects.create(
-            enterprise_id=worker.enterprise_id,
-            worker=worker,
-            date=date
-        )
-
-        # Criar intervalos válidos
-        for interval in intervals_raw:
-            if not isinstance(interval, (list, tuple)) or len(interval) != 2:
-                continue
-
-            start_raw, end_raw = interval
-
-            try:
-                start_time = datetime.strptime(start_raw, "%H:%M").time()
-                end_time = datetime.strptime(end_raw, "%H:%M").time()
-            except Exception:
-                continue
-
-            if end_time <= start_time:
-                continue
-
-            SchedulingWindowInterval.objects.create(
-                window=window,
-                start_time=start_time,
-                end_time=end_time
-            )
-
-        # Se não criou intervalos válidos, remover janela
-        if not window.intervals.exists():
-            window.delete()
-            return None
-
-        return window
-
-    # ==============================================================
-    # 🔥 VALIDAÇÃO
-    # ==============================================================
-
     def clean(self):
         super().clean()
 
-        window = self.ensure_scheduling_window()
+        if not self.start_time:
+            raise ValidationError("O horário de início é obrigatório.")
 
-        if not window:
-            raise ValidationError("Não há disponibilidade cadastrada para este trabalhador neste dia.")
-
-        intervals = window.intervals.all()
-        if not intervals:
-            raise ValidationError("Este dia não possui janelas de agendamento.")
-
-        # Se start_time ainda não foi definido pelo form, pula validação
-        if self.start_time is None:
-            return
-
-        # Validar se o horário está dentro de uma janela
-        valid = False
-        for interval in intervals:
-            if interval.start_time <= self.start_time < interval.end_time:
-                valid = True
-                break
-
-        if not valid:
-            raise ValidationError(
-                f"O horário {self.start_time} está fora da janela disponível do trabalhador."
-            )
+        if self.date is None:
+            raise ValidationError("A data é obrigatória.")
 
     # ==============================================================
-    # 🔥 Salvar + recálculo
+    # 🔥 Salvar com recálculo
     # ==============================================================
-
     def save(self, *args, **kwargs):
-        self.full_clean()     # chama clean()
+        # Atualiza duração e horário de término
         super().save(*args, **kwargs)
+        self.update_duration_and_end_time()
 
-        # Garante que a janela exista para agendamentos futuros
-        self.ensure_scheduling_window()
-
-
-
-
-# ============================================================
-# JANELA DE AGENDAMENTO
-# ============================================================
-class SchedulingWindow(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
-    enterprise = models.ForeignKey(
-        Enterprise,
-        on_delete=models.CASCADE,
-        related_name="scheduling_windows"
-    )
-
-    worker = models.ForeignKey(
-        Worker,
-        on_delete=models.CASCADE,
-        related_name="scheduling_windows"
-    )
-
-    date = models.DateField()
-
-    class Meta:
-        unique_together = (("worker", "date"),)
-        verbose_name = "Scheduling Window"
-        verbose_name_plural = "Scheduling Windows"
-        ordering = ("date",)
-
-    def __str__(self):
-        return f"{self.worker} — {self.date}"
-
-    def generate_slots(self, appointment_duration_minutes):
-        """
-        Gera slots disponíveis com base nas janelas e duração do agendamento.
-        """
-        slots = []
-
-        for interval in self.intervals.all():
-            start_dt = datetime.combine(self.date, interval.start_time)
-            end_dt   = datetime.combine(self.date, interval.end_time)
-
-            duration = timedelta(minutes=appointment_duration_minutes)
-            current = start_dt
-
-            while current + duration <= end_dt:
-                slots.append(current.time())
-                current += duration
-
-        return slots
-
-
-# ============================================================
-# INTERVALO DA JANELA DE AGENDAMENTO 
-# ============================================================
-class SchedulingWindowInterval(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
-    window = models.ForeignKey(
-        SchedulingWindow,
-        on_delete=models.CASCADE,
-        related_name="intervals"
-    )
-
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-
-    duration = models.PositiveIntegerField(editable=False)
-
-    class Meta:
-        ordering = ("start_time",)
-
-    def save(self, *args, **kwargs):
-        start_dt = datetime.combine(datetime.today(), self.start_time)
-        end_dt = datetime.combine(datetime.today(), self.end_time)
-
-        if end_dt <= start_dt:
-            raise ValueError("end_time must be greater than start_time")
-
-        delta = end_dt - start_dt
-        self.duration = int(delta.total_seconds() // 60)
-
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.start_time}–{self.end_time} ({self.duration} min)"
+        # Salva novamente se end_time mudou
+        super().save(update_fields=["duration", "end_time"])
