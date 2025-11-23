@@ -14,8 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from core.admin import custom_admin_site
 from django.shortcuts import redirect
 
@@ -24,7 +24,7 @@ def clear_enterprise(request):
     return redirect("/admin/")  # middleware controla o resto
 
 urlpatterns = [
-    path('', include('public.urls')),
+    path('', RedirectView.as_view(url='/admin/', permanent=False)),
     path('perfil/', include('perfil.urls')),
     path("admin/clear-enterprise/", clear_enterprise, name="clear_enterprise"),
     path('admin/', custom_admin_site.urls),
