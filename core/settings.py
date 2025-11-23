@@ -115,6 +115,18 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REDIS_URL = os.getenv("REDIS_URL", "redis://host.docker.internal:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

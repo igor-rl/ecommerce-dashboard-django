@@ -4,6 +4,7 @@ from django import forms
 import traceback
 
 from schedule.domain.services.available_time_service import AvailableTimeService
+from schedule.domain.services.scheduling_service import SchedulingService
 from schedule.forms import AppointmentForm, SchedulingAdminForm, WorkerAvailabilityForm
 from .models import Appointment, Worker, WorkerAvailability, Scheduling
 from organization.models import Enterprise, Member
@@ -434,16 +435,35 @@ class SchedulingAdmin(EnterpriseFilteredAdminMixin, admin.ModelAdmin):
         ]
 
     # ------------------------------------------------------------
-    # Enterprise automático
+    # Enterprise automático + Redis Lock via Service
     # ------------------------------------------------------------
     def save_model(self, request, obj, form, change):
+
         if not request.user.is_superuser:
             obj.enterprise_id = request.session.get("enterprise_id")
 
+        # Em criação (ADD) usamos o service para pegar o lock
+        if not change:
+            created = SchedulingService.create(
+                worker_id=obj.worker_id,
+                client_id=obj.client_id,
+                appointments=list(form.cleaned_data["appointments"].values_list("id", flat=True)),
+                date=obj.date,  # pode vir date ou string, service normaliza
+                start_time=obj.start_time,
+                enterprise_id=obj.enterprise_id,
+                notes=obj.notes
+            )
+
+            # garantir que o admin continue o fluxo normal
+            obj.pk = created.pk
+            form.instance = created
+            return
+
+        # Em edição mantém comportamento original
         super().save_model(request, obj, form, change)
 
     # ------------------------------------------------------------
-    # Calcula duração-total e end_time
+    # Calcula duração-total e end_time (mantido)
     # ------------------------------------------------------------
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)

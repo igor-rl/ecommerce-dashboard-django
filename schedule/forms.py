@@ -282,5 +282,3 @@ class SchedulingAdminForm(forms.ModelForm):
             self.instance.start_time = datetime.strptime(horario, "%H:%M").time()
 
         return cleaned
-
-

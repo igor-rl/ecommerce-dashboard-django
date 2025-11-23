@@ -13,13 +13,15 @@ pyjwt = "2.10.1"
 cryptography = "44.0.3"
 httpx = "0.28.1"
 django = "5.2.8"
+django-redis = "6.0.0"
+redis = "7.1.0"
 
 [dev-packages]
 black = "25.1.0"
 flake8 = "7.2.0"
-pytest = "8.3.5"
-pytest-django = "4.11.1"
 ipython = "9.1.0"
+pytest = "9.0.1"
+pytest-django = ".11.1"
 
 [requires]
 python_version = "3.12"
