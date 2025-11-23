@@ -85,6 +85,26 @@ django-admin startapp <nome_do_modulo>
 ```
 
 
+# 🔒 Distributed Lock com Redis
+
+EO sistema de agendamento deste projeto foi desenvolvido para garantir consistência, segurança e controle preciso sobre horários disponíveis, mesmo em ambientes altamente concorrentes — incluindo Docker, múltiplos containers, clusters e Kubernetes.
+
+Quando um usuário seleciona um horário para atendimento, o sistema:
+1) Consulta as disponibilidades semanais do profissional.
+2) Desconta automaticamente os horários já ocupados.
+3) Aplica regras como overlap tolerance.
+4) Gera janelas reais ainda possíveis para agendamento.
+5) Valida novamente no ato do salvamento se o horário continua disponível.
+6) Esse processo é altamente crítico e precisa ser seguro mesmo com várias requisições chegando ao mesmo tempo.
+
+## ✔️ Benefícios do Distributed Lock
+
+- Evita agendamentos duplicados.
+- Funciona em múltiplos containers, pods e ambientes distribuídos.
+- Garante consistência mesmo sob alta concorrência.
+- De fácil manutenção e baixo custo operacional.
+
+
 
 <br/>
 
